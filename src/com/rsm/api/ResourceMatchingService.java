@@ -3,55 +3,48 @@ package com.rsm.api;
 import javax.ws.rs.*;
 import javax.ws.rs.core.*;
 
+import com.rsm.api.exceptions.DataNotFoundException;
+import com.rsm.api.exceptions.GenericExceptionMapper;
+import com.rsm.api.exceptions.InvalidProjectIdException;
 import com.rsm.dao.ResourceMatchingDaoImpl;
 import com.rsm.dao.interfaces.ResourceMatchingDao;
 import com.rsm.dto.TaskResourcesDto;
-import com.rsm.models.Resource;
-import com.rsm.models.Task;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
-@Path("/rsm")
+@Path("/v1")
 public class ResourceMatchingService {
 	
-	
+	private final static Logger LOGGER = 
+             Logger.getLogger(ResourceMatchingService.class.getName());
+
 	@GET
 	@Path("/getResourcesForProject")
 	@Produces(MediaType.APPLICATION_JSON)
-	public List<TaskResourcesDto> getResourcesForProject(@QueryParam("projectId") String projectId) {
-		System.out.println("Before null check");
-		if (projectId == null) {
-		    throw new WebApplicationException(
-		      Response.status(Response.Status.BAD_REQUEST)
-		        .entity("projectId is mandatory")
-		        .build()
-		    );
+	public Response getResourcesForProject(@QueryParam("projectId") String projectId) {
+		LOGGER.log(Level.INFO, "API call - getResourcesForProject");
+		if (projectId == null || projectId.isEmpty()) {
+			LOGGER.log(Level.SEVERE, "ProjectId is missing.");
+		    throw new InvalidProjectIdException("id null");
 		}
-		System.out.println("After null check");
-		ResourceMatchingDao resMatchDao = new ResourceMatchingDaoImpl();
-		List<TaskResourcesDto> result = resMatchDao.getListOfResources(projectId);
-		return result;
-	}
-	
-	@GET
-	@Path("/dummyCall")
-	@Produces(MediaType.APPLICATION_JSON)
-	public List<Resource> getDummyCall() {
-		List<Resource> resources = new ArrayList<Resource>();
-		Resource r = new Resource();
-		r.setResourceId("1");
-		r.setResourceName("Rathish");
-		Resource r1 = new Resource();
-		r.setResourceId("2");
-		r.setResourceName("Mithun");
-		Resource r2 = new Resource();
-		r.setResourceId("3");
-		r.setResourceName("Nirmal");
-		resources.add(r);
-		resources.add(r1);
-		resources.add(r2);
-		return resources;
+		ResourceMatchingDao resMatchDao;
+		List<TaskResourcesDto> result = null;
+		try {
+			resMatchDao = new ResourceMatchingDaoImpl();
+			result = resMatchDao.getListOfResources(projectId);
+			if(result == null || result.isEmpty()) {
+				throw new DataNotFoundException("Error");
+			}
+		} catch(DataNotFoundException ex) {
+			LOGGER.log(Level.SEVERE, " Data missing for Project");
+			return new GenericExceptionMapper().toResponse(ex);
+		} catch(Exception ex) {
+			LOGGER.log(Level.SEVERE, "Error occurred");
+			ex.printStackTrace();
+			return new GenericExceptionMapper().toResponse(ex);
+		}
+		return Response.status(Response.Status.OK).entity(result).build();
 	}
 }
